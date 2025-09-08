@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR File Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
-    <script src="https://unpkg.com/qr-scanner@1.5.0/qr-scanner.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.5.0/qr-scanner.umd.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -58,7 +58,7 @@
     <div id="status">Ожидание действия...</div>
 
     <script>
-        // Инициализация канваса в начале
+        // Инициализация канваса
         const canvas = document.getElementById('qrCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -68,7 +68,7 @@
 
         // Проверяем, что QrScanner доступен
         if (typeof QrScanner === 'undefined') {
-            document.getElementById('status').textContent = 'Ошибка: Библиотека qr-scanner не загружена.';
+            document.getElementById('status').textContent = 'Ошибка: Библиотека qr-scanner не загружена. Попробуйте позже или проверьте подключение.';
         } else {
             qrScanner = new QrScanner(
                 document.getElementById('video'),
@@ -84,7 +84,7 @@
 
         function startPeer(id) {
             peer = new Peer(id, {
-                host: '0.peerjs.com', // Используем официальный сервер PeerJS
+                host: '0.peerjs.com',
                 secure: true,
                 port: 443,
                 config: {
@@ -128,7 +128,7 @@
                         document.getElementById('status').textContent = 'QR-код создан. Отсканируйте его с другого устройства.';
                     };
                     img.onerror = () => {
-                        document.getElementById('status').textContent = 'Ошибка загрузки QR-кода.';
+                        document.getElementById('status').textContent = 'Ошибка загрузки QR-кода. Проверьте подключение к api.qrserver.com.';
                     };
                 }, 1000);
             }
@@ -136,7 +136,7 @@
 
         function startScanning() {
             if (!qrScanner) {
-                document.getElementById('status').textContent = 'Ошибка: Сканер QR-кодов не инициализирован.';
+                document.getElementById('status').textContent = 'Ошибка: Сканер QR-кодов не инициализирован. Проверьте загрузку библиотеки.';
                 return;
             }
             canvas.style.display = 'none';
