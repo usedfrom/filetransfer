@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR File Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
-    <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+    <script src="https://unpkg.com/qr-scanner@1.5.0/qr-scanner.umd.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -58,9 +58,6 @@
     <div id="status">Ожидание действия...</div>
 
     <script>
-        // Указываем путь к локальному Web Worker
-        QrScanner.WORKER_PATH = './qr-scanner-worker.min.js';
-
         let peer = null;
         let conn = null;
         const qrScanner = new QrScanner(
@@ -68,7 +65,7 @@
             result => handleQR(result),
             {
                 returnDetailedScanResult: true,
-                preferredCamera: 'environment', // Используем заднюю камеру
+                preferredCamera: 'environment',
                 maxScansPerSecond: 10,
                 highlightScanRegion: true
             }
@@ -78,7 +75,17 @@
         const ctx = canvas.getContext('2d');
 
         function startPeer(id) {
-            peer = new Peer(id);
+            peer = new Peer(id, {
+                host: 'peerjs-server.herokuapp.com',
+                secure: true,
+                port: 443,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'turn:turn.anyfirewall.com:3478', username: 'webrtc', credential: 'webrtc' }
+                    ]
+                }
+            });
             peer.on('open', () => {
                 document.getElementById('status').textContent = 'Peer ID: ' + peer.id;
             });
@@ -91,7 +98,8 @@
                 });
             });
             peer.on('error', err => {
-                document.getElementById('status').textContent = 'Ошибка PeerJS: ' + err;
+                document.getElementById('status').textContent = 'Ошибка PeerJS: ' + err.message;
+                console.error('PeerJS Error:', err);
             });
         }
 
@@ -137,6 +145,7 @@
                 })
                 .catch(err => {
                     document.getElementById('status').textContent = 'Ошибка перечисления устройств: ' + err.message;
+                    console.error('Ошибка устройств:', err);
                 });
         }
 
@@ -153,7 +162,8 @@
                 document.getElementById('fileInput').style.display = 'block';
             });
             conn.on('error', err => {
-                document.getElementById('status').textContent = 'Ошибка соединения: ' + err;
+                document.getElementById('status').textContent = 'Ошибка соединения: ' + err.message;
+                console.error('Connection Error:', err);
             });
         }
 
