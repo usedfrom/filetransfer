@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR File Transfer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    <script src="https://unpkg.com/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #video, #qrCanvas {
+            width: 300px;
+            height: 300px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        #fileInput {
+            margin: 10px 0;
+            display: none;
+        }
+        #status {
+            margin-top: 10px;
+            color: #333;
+            text-align: center;
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Передача файлов через QR-код</h1>
+    <video id="video" autoplay></video>
+    <canvas id="qrCanvas" style="display: none;"></canvas>
+    <input type="file" id="fileInput">
+    <button onclick="startScanning()">Сканировать QR-код</button>
+    <button onclick="generateQR()">Создать QR-код</button>
+    <div id="status">Ожидание действия...</div>
+
+    <script>
+        // Указываем путь к локальному Web Worker
+        QrScanner.WORKER_PATH = './qr-scanner-worker.min.js';
+
+        let peer = null;
+        let conn = null;
+        const qrScanner = new QrScanner(
+            document.getElementById('video'),
+            result => handleQR(result),
+            {
+                returnDetailedScanResult: true,
+                preferredCamera: 'environment', // Используем заднюю камеру
+                maxScansPerSecond: 10,
+                highlightScanRegion: true
+            }
+        );
+
+        const canvas = document.getElementById('qrCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function startPeer(id) {
+            peer = new Peer(id);
+            peer.on('open', () => {
+                document.getElementById('status').textContent = 'Peer ID: ' + peer.id;
+            });
+            peer.on('connection', connection => {
+                conn = connection;
+                conn.on('data', data => {
+                    if (data.type === 'file') {
+                        downloadFile(data.name, data.content);
+                    }
+                });
+            });
+            peer.on('error', err => {
+                document.getElementById('status').textContent = 'Ошибка PeerJS: ' + err;
+            });
+        }
+
+        function generateQR() {
+            if (!peer) {
+                const peerId = Math.random().toString(36).substring(2, 15);
+                startPeer(peerId);
+                setTimeout(() => {
+                    const qrData = peer.id;
+                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+                    const img = new Image();
+                    img.src = qrCodeUrl;
+                    img.onload = () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        canvas.style.display = 'block';
+                        document.getElementById('video').style.display = 'none';
+                        document.getElementById('status').textContent = 'QR-код создан. Отсканируйте его с другого устройства.';
+                    };
+                    img.onerror = () => {
+                        document.getElementById('status').textContent = 'Ошибка загрузки QR-кода.';
+                    };
+                }, 1000);
+            }
+        }
+
+        function startScanning() {
+            canvas.style.display = 'none';
+            document.getElementById('video').style.display = 'block';
+            document.getElementById('fileInput').style.display = 'none';
+            navigator.mediaDevices.enumerateDevices()
+                .then(devices => {
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    if (videoDevices.length === 0) {
+                        document.getElementById('status').textContent = 'Камера не найдена на устройстве.';
+                        return;
+                    }
+                    qrScanner.start().catch(err => {
+                        document.getElementById('status').textContent = 'Ошибка доступа к камере: ' + err.message;
+                        console.error('Ошибка qrScanner:', err);
+                    });
+                    document.getElementById('status').textContent = 'Сканирование QR-кода...';
+                })
+                .catch(err => {
+                    document.getElementById('status').textContent = 'Ошибка перечисления устройств: ' + err.message;
+                });
+        }
+
+        function handleQR(result) {
+            const qrData = result.data;
+            qrScanner.stop();
+            document.getElementById('status').textContent = 'Подключение к: ' + qrData;
+            if (!peer) {
+                startPeer();
+            }
+            conn = peer.connect(qrData);
+            conn.on('open', () => {
+                document.getElementById('status').textContent = 'Подключение установлено!';
+                document.getElementById('fileInput').style.display = 'block';
+            });
+            conn.on('error', err => {
+                document.getElementById('status').textContent = 'Ошибка соединения: ' + err;
+            });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && conn) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    conn.send({
+                        type: 'file',
+                        name: file.name,
+                        content: reader.result
+                    });
+                    document.getElementById('status').textContent = 'Файл отправлен: ' + file.name;
+                };
+                reader.onerror = () => {
+                    document.getElementById('status').textContent = 'Ошибка чтения файла.';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function downloadFile(name, content) {
+            const link = document.createElement('a');
+            link.href = content;
+            link.download = name;
+            link.click();
+            document.getElementById('status').textContent = 'Файл получен: ' + name;
+        }
+    </script>
+</body>
+</html>
