@@ -58,25 +58,33 @@
     <div id="status">Ожидание действия...</div>
 
     <script>
-        let peer = null;
-        let conn = null;
-        const qrScanner = new QrScanner(
-            document.getElementById('video'),
-            result => handleQR(result),
-            {
-                returnDetailedScanResult: true,
-                preferredCamera: 'environment',
-                maxScansPerSecond: 10,
-                highlightScanRegion: true
-            }
-        );
-
+        // Инициализация канваса в начале
         const canvas = document.getElementById('qrCanvas');
         const ctx = canvas.getContext('2d');
 
+        let peer = null;
+        let conn = null;
+        let qrScanner = null;
+
+        // Проверяем, что QrScanner доступен
+        if (typeof QrScanner === 'undefined') {
+            document.getElementById('status').textContent = 'Ошибка: Библиотека qr-scanner не загружена.';
+        } else {
+            qrScanner = new QrScanner(
+                document.getElementById('video'),
+                result => handleQR(result),
+                {
+                    returnDetailedScanResult: true,
+                    preferredCamera: 'environment',
+                    maxScansPerSecond: 10,
+                    highlightScanRegion: true
+                }
+            );
+        }
+
         function startPeer(id) {
             peer = new Peer(id, {
-                host: 'peerjs-server.herokuapp.com',
+                host: '0.peerjs.com', // Используем официальный сервер PeerJS
                 secure: true,
                 port: 443,
                 config: {
@@ -127,6 +135,10 @@
         }
 
         function startScanning() {
+            if (!qrScanner) {
+                document.getElementById('status').textContent = 'Ошибка: Сканер QR-кодов не инициализирован.';
+                return;
+            }
             canvas.style.display = 'none';
             document.getElementById('video').style.display = 'block';
             document.getElementById('fileInput').style.display = 'none';
